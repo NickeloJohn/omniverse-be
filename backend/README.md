@@ -15,7 +15,6 @@ docker compose up -d db
 From the repository root, configure the local Python backend:
 
 ```sh
-cp backend/.env.example backend/.env
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r backend/requirements.txt
