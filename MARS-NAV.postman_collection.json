@@ -1,0 +1,244 @@
+{
+  "info": {
+    "_postman_id": "6b4a4755-3d3f-4efb-8aec-48c49d4ce901",
+    "name": "MARS-NAV API",
+    "description": "Complete MARS-NAV FastAPI collection. Start the API at http://localhost:8000. For the sample route workflow, run 'List sites', then 'List science targets' (captures targetId), then create the mission. Terrain/routing requests require the DEMO seed and terrain commands. Seeded terrain/EVA are simulated; manual targets are proposed, not NASA-verified.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000", "type": "string" },
+    { "key": "siteId", "value": "", "type": "string" },
+    { "key": "layerId", "value": "", "type": "string" },
+    { "key": "targetId", "value": "", "type": "string" },
+    { "key": "missionId", "value": "", "type": "string" },
+    { "key": "routeId", "value": "", "type": "string" },
+    { "key": "simulationId", "value": "", "type": "string" },
+    { "key": "siteX", "value": "-3000", "type": "string" },
+    { "key": "siteY", "value": "-2500", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Health",
+      "item": [
+        {
+          "name": "Health (versioned)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('API is ready', () => pm.response.to.have.status(200));", "pm.test('Database is connected', () => pm.expect(pm.response.json().database).to.eql(true));"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/health" }
+        },
+        {
+          "name": "Health (root alias)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health" }
+        }
+      ]
+    },
+    {
+      "name": "2. Sites and Layers",
+      "item": [
+        {
+          "name": "List sites (captures first siteId)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Sites listed', () => pm.response.to.have.status(200));", "const data = pm.response.json();", "if (data.items && data.items.length) pm.collectionVariables.set('siteId', data.items[0].id);", "pm.test('Site ID captured', () => pm.expect(pm.collectionVariables.get('siteId')).to.be.a('string').and.not.empty);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/sites?limit=25&offset=0" }
+        },
+        {
+          "name": "Get site by siteId",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/sites/{{siteId}}" }
+        },
+        {
+          "name": "List layers (filterable)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const data = pm.response.json();", "if (data.items && data.items.length) pm.collectionVariables.set('layerId', data.items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/layers?site_id={{siteId}}&limit=100&offset=0" }
+        },
+        {
+          "name": "List layers by type and origin",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/layers?layer_type=elevation&data_origin=simulated" }
+        },
+        {
+          "name": "Get layer details (captures layerId)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Layer exists', () => pm.response.to.have.status(200));", "pm.collectionVariables.set('layerId', pm.response.json().id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/layers/{{layerId}}" }
+        },
+        {
+          "name": "Get layer preview PNG",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/layers/{{layerId}}/preview" }
+        }
+      ]
+    },
+    {
+      "name": "3. Missions",
+      "item": [
+        {
+          "name": "Create mission (captures missionId; run List science targets first)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Mission created', () => pm.response.to.have.status(201));", "const mission = pm.response.json();", "pm.collectionVariables.set('missionId', mission.id);", "pm.test('Mission starts as draft', () => pm.expect(mission.status).to.eql('draft'));", "pm.test('Mission is not mislabelled as demo', () => pm.expect(mission.is_demo).to.eql(false));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman EVA mission\",\n  \"description\": \"Development API workflow\",\n  \"site_id\": \"{{siteId}}\",\n  \"eva_duration_limit_min\": 1440,\n  \"return_reserve_min\": 60,\n  \"constraints\": {\n    \"max_slope_deg\": 15,\n    \"block_unknown_terrain\": true,\n    \"preferred_profile\": \"safety_first\"\n  },\n  \"science_target_ids\": [\"{{targetId}}\"]\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/v1/missions"
+          }
+        },
+        {
+          "name": "List missions",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/missions?limit=25&offset=0&site_id={{siteId}}" }
+        },
+        {
+          "name": "Get mission",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/missions/{{missionId}}" }
+        },
+        {
+          "name": "Update mission / status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"description\": \"Updated through Postman\",\n  \"status\": \"planned\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/v1/missions/{{missionId}}"
+          }
+        },
+        {
+          "name": "Delete mission (draft or aborted only)",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/v1/missions/{{missionId}}" }
+        }
+      ]
+    },
+    {
+      "name": "4. Science Targets and Observations",
+      "item": [
+        {
+          "name": "List science targets (captures targetId)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Science targets listed', () => pm.response.to.have.status(200));", "const data = pm.response.json();", "if (data.items && data.items.length) pm.collectionVariables.set('targetId', data.items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/science-targets?site_id={{siteId}}&limit=25&offset=0" }
+        },
+        {
+          "name": "Create manual proposed science target",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Target created as proposed/manual', () => { pm.response.to.have.status(201); const x = pm.response.json(); pm.expect(x.creation_source).to.eql('manual'); pm.expect(x.verification_status).to.eql('proposed'); });", "pm.collectionVariables.set('targetId', pm.response.json().id);"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"site_id\": \"{{siteId}}\",\n  \"name\": \"Postman proposed target\",\n  \"description\": \"Manually entered development target\",\n  \"scientific_objective\": \"Inspect local surface morphology\",\n  \"location\": { \"x_m\": -2000, \"y_m\": -1500 },\n  \"associated_mission\": \"Mars 2020 (context only)\",\n  \"geological_context\": \"Unverified manual note\",\n  \"estimated_activity_duration_min\": 30\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/v1/science-targets"
+          }
+        },
+        {
+          "name": "Get science target",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/science-targets/{{targetId}}" }
+        },
+        {
+          "name": "Create manual simulated observation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"site_id\": \"{{siteId}}\",\n  \"target_id\": \"{{targetId}}\",\n  \"mission_id\": \"{{missionId}}\",\n  \"observation_type\": \"geological\",\n  \"title\": \"Postman observation note\",\n  \"notes\": \"Manual simulated note, not instrument data\",\n  \"measurements\": { \"visual_description\": \"sample placeholder\" }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/v1/observations"
+          }
+        },
+        {
+          "name": "List observations",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/observations?site_id={{siteId}}&limit=25&offset=0" }
+        }
+      ]
+    },
+    {
+      "name": "5. Terrain and Hazards",
+      "item": [
+        {
+          "name": "Terrain metadata",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/terrain/metadata?site_id={{siteId}}" }
+        },
+        {
+          "name": "Sample terrain (site-local metres)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/terrain/sample?site_id={{siteId}}&x_m={{siteX}}&y_m={{siteY}}" }
+        },
+        {
+          "name": "List hazards",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/hazards?site_id={{siteId}}&limit=100&offset=0" }
+        }
+      ]
+    },
+    {
+      "name": "6. Route Planning",
+      "item": [
+        {
+          "name": "Plan routes (shorter and safety-first)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Route plan returned', () => pm.response.to.have.status(200));", "pm.test('Both profiles returned', () => pm.expect(pm.response.json().routes.map(r => r.profile)).to.have.members(['shorter_distance', 'safety_first']));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"mission_id\": \"{{missionId}}\",\n  \"profiles\": [\"shorter_distance\", \"safety_first\"],\n  \"return_to_habitat\": true,\n  \"eva_duration_limit_min\": 1440,\n  \"return_reserve_min\": 60\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/v1/routes/plan"
+          }
+        },
+        {
+          "name": "Plan one route with a waypoint",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"site_id\": \"{{siteId}}\",\n  \"profiles\": [\"safety_first\"],\n  \"destinations\": [\n    { \"location\": { \"x_m\": -2000, \"y_m\": -1500 }, \"label\": \"Rover waypoint\", \"activity_duration_min\": 10 }\n  ],\n  \"return_to_habitat\": true,\n  \"eva_duration_limit_min\": 1440\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/v1/routes/plan"
+          }
+        },
+        {
+          "name": "Save safety-first route to mission (captures routeId)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Route saved', () => pm.response.to.have.status(201));", "pm.collectionVariables.set('routeId', pm.response.json().id);", "pm.test('Stored route has computed geometry', () => pm.expect(pm.response.json().geometry.point_count).to.be.above(0));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"profile\": \"safety_first\",\n  \"select\": true,\n  \"eva_duration_limit_min\": 1440,\n  \"return_to_habitat\": true\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/v1/missions/{{missionId}}/routes"
+          }
+        },
+        {
+          "name": "List saved mission routes",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const data = pm.response.json();", "if (data.items && data.items.length) pm.collectionVariables.set('routeId', data.items[0].id);"] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/missions/{{missionId}}/routes?limit=25&offset=0" }
+        },
+        {
+          "name": "Get saved route",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/routes/{{routeId}}" }
+        }
+      ]
+    },
+    {
+      "name": "7. EVA Simulation (all simulated)",
+      "item": [
+        {
+          "name": "Start simulation (captures simulationId)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Simulation started', () => pm.response.to.have.status(201));", "const data = pm.response.json();", "pm.collectionVariables.set('simulationId', data.session.id);", "pm.test('All data is simulated', () => pm.expect(data.session.data_origin).to.eql('simulated'));", "pm.test('Clock is explicitly advanced by requests', () => pm.expect(data.message).to.include('authoritative clock'));"] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"route_id\": \"{{routeId}}\",\n  \"resource_model\": {\n    \"version\": \"prototype-resources-v1\",\n    \"oxygen_use_pct_per_hour_moving\": 12,\n    \"oxygen_use_pct_per_hour_activity\": 15,\n    \"battery_use_pct_per_hour_moving\": 8,\n    \"battery_use_pct_per_hour_activity\": 10,\n    \"oxygen_warning_pct\": 30,\n    \"battery_warning_pct\": 25,\n    \"risk_warning_threshold\": 0.6,\n    \"risk_critical_threshold\": 0.85\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/v1/simulations"
+          }
+        },
+        {
+          "name": "Get simulation state",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/simulations/{{simulationId}}/state" }
+        },
+        {
+          "name": "Advance simulation clock by 300 seconds",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"advance_by_s\": 300\n}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/v1/simulations/{{simulationId}}/advance"
+          }
+        },
+        {
+          "name": "Pause simulation",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/v1/simulations/{{simulationId}}/pause" }
+        },
+        {
+          "name": "Resume simulation",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/v1/simulations/{{simulationId}}/resume" }
+        },
+        {
+          "name": "List telemetry",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/v1/simulations/{{simulationId}}/telemetry?limit=100&offset=0" }
+        },
+        {
+          "name": "Reset simulation",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/v1/simulations/{{simulationId}}/reset" }
+        }
+      ]
+    }
+  ]
+}
